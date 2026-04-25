@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Shared Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Lobby Rules ---
+    function isValidLobby(data) {
+      return data.keys().hasAll(['name', 'lat', 'lng', 'creatorId', 'createdAt'])
+             && data.keys().size() == 5
+             && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+             && data.lat is number
+             && data.lng is number
+             && data.creatorId == request.auth.uid
+             && data.createdAt == request.time;
+    }
+
+    match /lobbies/{lobbyId} {
+      // Anyone signed in can see public lobbies
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(lobbyId);
+
+      // Anyone signed in can create a lobby
+      allow create: if isSignedIn() && isValidId(lobbyId) && isValidLobby(incoming());
+
+      // No updates for now (lobbies are immutable in this version)
+      // Only creator can delete
+      allow delete: if isSignedIn() && existing().creatorId == request.auth.uid;
+
+      // --- Message Rules ---
+      function isValidMessage(data) {
+        return data.keys().hasAll(['text', 'senderId', 'senderName', 'createdAt'])
+               && (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAll(['isAi'])))
+               && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
+               && data.senderId == request.auth.uid
+               && data.senderName is string && data.senderName.size() <= 50
+               && data.createdAt == request.time;
+      }
+
+      match /messages/{messageId} {
+        allow list: if isSignedIn();
+        allow get: if isSignedIn() && isValidId(messageId);
+
+        // Anyone signed in can send a message
+        allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming());
+
+        // Messages are immutable
+        allow update, delete: if false;
+      }
+    }
+  }
+}

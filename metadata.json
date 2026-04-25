@@ -1,0 +1,8 @@
+{
+  "name": "Remix: MariTech",
+  "description": "The ultimate high-tech gossip hub. Create public lobbies to chat with neighbors and get the latest updates from a Gemini-powered AI chatbot.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
